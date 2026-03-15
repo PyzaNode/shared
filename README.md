@@ -9,4 +9,4 @@ No binary to run. Other repos `go get github.com/pyzanode/shared` (or use a repl
 
 ## License
 
-See the [PyzaNode](https://github.com/PyzaNode/PyzaNode) repo for the project license.
+See the [project license](https://github.com/PyzaNode/.github/blob/main/profile/LICENSE).
