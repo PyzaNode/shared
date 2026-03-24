@@ -10,7 +10,7 @@ type Network struct {
 	Enabled           bool                   `json:"enabled"`
 	DefaultProxyGroup string                 `json:"default_proxy_group,omitempty"` // Proxy group ID for player join
 	Cloudflare        *CloudflareConfig      `json:"cloudflare,omitempty"`
-	CloudflareSRV     *CloudflareSRVSettings `json:"cloudflare_srv,omitempty"`     // Per-network SRV sync (zone, hostname, proxy group)
+	CloudflareSRV     *CloudflareSRVSettings `json:"cloudflare_srv,omitempty"` // Per-network SRV sync (zone, hostname, proxy group)
 	Tags              map[string]string      `json:"tags,omitempty"`
 	CreatedAt         time.Time              `json:"created_at"`
 	UpdatedAt         time.Time              `json:"updated_at"`
@@ -89,13 +89,13 @@ type Settings struct {
 	// DebugLogging enables [debug] lines in controller logs (API, WebSocket, Cloudflare). Toggle from dashboard without restart.
 	DebugLogging bool `json:"debug_logging"`
 	// Notifications: basic crash/node notifications and optional ntfy integration.
-	NotifyOnCrash         bool   `json:"notify_on_crash"`
-	NotifyOnNodeDisconnect bool  `json:"notify_on_node_disconnect"`
-	NtfyURL               string `json:"ntfy_url,omitempty"`
-	NtfyTopic             string `json:"ntfy_topic,omitempty"`
-	NtfyToken             string `json:"ntfy_token,omitempty"`
-	NtfyUsername          string `json:"ntfy_username,omitempty"`
-	NtfyPassword          string `json:"ntfy_password,omitempty"`
+	NotifyOnCrash          bool   `json:"notify_on_crash"`
+	NotifyOnNodeDisconnect bool   `json:"notify_on_node_disconnect"`
+	NtfyURL                string `json:"ntfy_url,omitempty"`
+	NtfyTopic              string `json:"ntfy_topic,omitempty"`
+	NtfyToken              string `json:"ntfy_token,omitempty"`
+	NtfyUsername           string `json:"ntfy_username,omitempty"`
+	NtfyPassword           string `json:"ntfy_password,omitempty"`
 }
 
 // Node represents a machine running the agent.
@@ -109,26 +109,30 @@ type Node struct {
 	// When set, Cloudflare SRV sync can use this instead of the OS hostname.
 	PublicHostname string `json:"public_hostname,omitempty"`
 	// UsePublicHostname: when true or unset, proxies use this node's PublicHostname for backends; when false, use Address or Hostname (for nodes behind NAT). Omitempty so existing nodes default to true.
-	UsePublicHostname *bool `json:"use_public_hostname,omitempty"`
-	OS                string `json:"os"`
-	CPUUsage        float64           `json:"cpu_usage"`
-	RAMUsage        float64           `json:"ram_usage"`  // MB used
-	RAMTotal        float64           `json:"ram_total"` // MB total
-	DiskUsage       float64           `json:"disk_usage"` // MB used
-	DiskTotal       float64           `json:"disk_total"` // MB total
-	NetworkRx       uint64            `json:"network_rx"` // bytes
-	NetworkTx       uint64            `json:"network_tx"` // bytes
-	CPUUsageServers float64           `json:"cpu_usage_servers"` // 0..1
-	RAMUsageServers float64           `json:"ram_usage_servers"` // MB
-	RunningCount    int               `json:"running_count"`
-	Health          string            `json:"health"` // "healthy", "degraded", "offline"
-	LastHeartbeat   time.Time         `json:"last_heartbeat"`
+	UsePublicHostname *bool     `json:"use_public_hostname,omitempty"`
+	OS                string    `json:"os"`
+	CPUUsage          float64   `json:"cpu_usage"`
+	RAMUsage          float64   `json:"ram_usage"`         // MB used
+	RAMTotal          float64   `json:"ram_total"`         // MB total
+	DiskUsage         float64   `json:"disk_usage"`        // MB used
+	DiskTotal         float64   `json:"disk_total"`        // MB total
+	NetworkRx         uint64    `json:"network_rx"`        // bytes
+	NetworkTx         uint64    `json:"network_tx"`        // bytes
+	CPUUsageServers   float64   `json:"cpu_usage_servers"` // 0..1
+	RAMUsageServers   float64   `json:"ram_usage_servers"` // MB
+	RunningCount      int       `json:"running_count"`
+	Health            string    `json:"health"` // "healthy", "degraded", "offline"
+	LastHeartbeat     time.Time `json:"last_heartbeat"`
 	// Alert is set by the agent when something needs owner attention (e.g. Docker missing, start failure).
-	Alert           string            `json:"alert,omitempty"`
+	Alert string `json:"alert,omitempty"`
+	// AgentVersion is the embedded pyzanode-agent release string from the last heartbeat (e.g. Beta-0.2.0).
+	AgentVersion string `json:"agent_version,omitempty"`
+	// VersionAlert is set by the controller when the agent build does not match this controller (or version unknown).
+	VersionAlert string `json:"version_alert,omitempty"`
 	// DebugEnabled is reported by the agent on heartbeat so the dashboard toggle reflects actual state.
-	DebugEnabled    bool              `json:"debug_enabled"`
-	Tags            map[string]string `json:"tags,omitempty"`
-	CreatedAt       time.Time         `json:"created_at"`
+	DebugEnabled bool              `json:"debug_enabled"`
+	Tags         map[string]string `json:"tags,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
 }
 
 // Server represents a Minecraft server instance (backend or proxy).
@@ -182,17 +186,19 @@ type Preset struct {
 
 // NodeMetrics is sent by the agent on heartbeat.
 type NodeMetrics struct {
-	CPUUsage         float64         `json:"cpu_usage"`
-	RAMUsage         float64         `json:"ram_usage"`
-	RAMTotal         float64         `json:"ram_total"`
-	DiskUsage        float64         `json:"disk_usage"`
-	DiskTotal        float64         `json:"disk_total"`
-	NetworkRx        uint64          `json:"network_rx"`
-	NetworkTx        uint64          `json:"network_tx"`
-	CPUUsageServers  float64         `json:"cpu_usage_servers"`  // 0..1, portion of CPU used by managed servers
-	RAMUsageServers  float64         `json:"ram_usage_servers"`   // MB used by managed servers
-	Servers          []ServerMetrics `json:"servers,omitempty"`
-	DebugEnabled     bool            `json:"debug_enabled"`       // so dashboard can show actual toggle state
+	CPUUsage        float64         `json:"cpu_usage"`
+	RAMUsage        float64         `json:"ram_usage"`
+	RAMTotal        float64         `json:"ram_total"`
+	DiskUsage       float64         `json:"disk_usage"`
+	DiskTotal       float64         `json:"disk_total"`
+	NetworkRx       uint64          `json:"network_rx"`
+	NetworkTx       uint64          `json:"network_tx"`
+	CPUUsageServers float64         `json:"cpu_usage_servers"` // 0..1, portion of CPU used by managed servers
+	RAMUsageServers float64         `json:"ram_usage_servers"` // MB used by managed servers
+	Servers         []ServerMetrics `json:"servers,omitempty"`
+	DebugEnabled    bool            `json:"debug_enabled"` // so dashboard can show actual toggle state
+	// AgentVersion is this agent binary's embedded release (must match controller for supported installs).
+	AgentVersion string `json:"agent_version,omitempty"`
 }
 
 // ServerMetrics is per-server metrics from agent.
@@ -221,40 +227,40 @@ type AnalyticsEvent struct {
 
 // PlayerAnalytics tracks aggregate per-player activity.
 type PlayerAnalytics struct {
-	Player                 string        `json:"player"`
-	NetworkID              string        `json:"network_id,omitempty"`
-	Joins                  int           `json:"joins"`
-	Leaves                 int           `json:"leaves"`
-	Chats                  int           `json:"chats"`
-	TotalActiveDurationSec int64         `json:"total_active_duration_sec"`
-	EstimatedAFKSec        int64         `json:"estimated_afk_sec"`
-	AverageSessionSec      int64         `json:"average_session_sec"`
-	LastSeen               time.Time     `json:"last_seen"`
-	Online                 bool          `json:"online"`
-	CurrentSessionStarted  *time.Time    `json:"current_session_started,omitempty"`
-	CurrentServerID        string        `json:"current_server_id,omitempty"`
-	CurrentServer          string        `json:"current_server,omitempty"`
-	CurrentNodeID          string        `json:"current_node_id,omitempty"`
-	CurrentNode            string        `json:"current_node,omitempty"`
+	Player                 string            `json:"player"`
+	NetworkID              string            `json:"network_id,omitempty"`
+	Joins                  int               `json:"joins"`
+	Leaves                 int               `json:"leaves"`
+	Chats                  int               `json:"chats"`
+	TotalActiveDurationSec int64             `json:"total_active_duration_sec"`
+	EstimatedAFKSec        int64             `json:"estimated_afk_sec"`
+	AverageSessionSec      int64             `json:"average_session_sec"`
+	LastSeen               time.Time         `json:"last_seen"`
+	Online                 bool              `json:"online"`
+	CurrentSessionStarted  *time.Time        `json:"current_session_started,omitempty"`
+	CurrentServerID        string            `json:"current_server_id,omitempty"`
+	CurrentServer          string            `json:"current_server,omitempty"`
+	CurrentNodeID          string            `json:"current_node_id,omitempty"`
+	CurrentNode            string            `json:"current_node,omitempty"`
 	Metadata               map[string]string `json:"metadata,omitempty"`
 }
 
 // AnalyticsSummary aggregates recent and all-time operational/player metrics.
 type AnalyticsSummary struct {
-	GeneratedAt                 time.Time         `json:"generated_at"`
-	NetworkID                   string            `json:"network_id,omitempty"`
-	EventsTotal                 int               `json:"events_total"`
-	EventsByType                map[string]int    `json:"events_by_type"`
-	UniquePlayers               int               `json:"unique_players"`
-	TotalJoins                  int               `json:"total_joins"`
-	TotalLeaves                 int               `json:"total_leaves"`
-	TotalChats                  int               `json:"total_chats"`
-	TotalActiveDurationSec      int64             `json:"total_active_duration_sec"`
-	TotalEstimatedAFKSec        int64             `json:"total_estimated_afk_sec"`
-	AverageUserActiveTimeSec    int64             `json:"average_user_active_time_sec"`
-	AverageEstimatedAFKTimeSec  int64             `json:"average_estimated_afk_time_sec"`
-	AverageSessionDurationSec   int64             `json:"average_session_duration_sec"`
-	TopPlayersByChats           []PlayerAnalytics `json:"top_players_by_chats"`
-	TopPlayersByActiveTime      []PlayerAnalytics `json:"top_players_by_active_time"`
-	MostRecentEvents            []AnalyticsEvent  `json:"most_recent_events"`
+	GeneratedAt                time.Time         `json:"generated_at"`
+	NetworkID                  string            `json:"network_id,omitempty"`
+	EventsTotal                int               `json:"events_total"`
+	EventsByType               map[string]int    `json:"events_by_type"`
+	UniquePlayers              int               `json:"unique_players"`
+	TotalJoins                 int               `json:"total_joins"`
+	TotalLeaves                int               `json:"total_leaves"`
+	TotalChats                 int               `json:"total_chats"`
+	TotalActiveDurationSec     int64             `json:"total_active_duration_sec"`
+	TotalEstimatedAFKSec       int64             `json:"total_estimated_afk_sec"`
+	AverageUserActiveTimeSec   int64             `json:"average_user_active_time_sec"`
+	AverageEstimatedAFKTimeSec int64             `json:"average_estimated_afk_time_sec"`
+	AverageSessionDurationSec  int64             `json:"average_session_duration_sec"`
+	TopPlayersByChats          []PlayerAnalytics `json:"top_players_by_chats"`
+	TopPlayersByActiveTime     []PlayerAnalytics `json:"top_players_by_active_time"`
+	MostRecentEvents           []AnalyticsEvent  `json:"most_recent_events"`
 }
