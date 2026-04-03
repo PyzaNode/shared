@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Network represents a Minecraft network ecosystem (proxy groups + server groups).
 type Network struct {
@@ -50,6 +53,12 @@ type ServerGroup struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
+// HandshakeJoinRoute maps the client handshake hostname to a backend server name on the proxy (/server name).
+type HandshakeJoinRoute struct {
+	HandshakeHostname string `json:"handshake_hostname"`
+	ServerName        string `json:"server_name"`
+}
+
 // ProxyGroup is a load-balanced group of proxy instances (BungeeCord/Velocity).
 type ProxyGroup struct {
 	ID                    string `json:"id"`
@@ -66,8 +75,15 @@ type ProxyGroup struct {
 	LBStrategy     string    `json:"lb_strategy,omitempty"` // "round_robin", "least_connections", "random"
 	StickySessions bool      `json:"sticky_sessions"`
 	HealthCheckSec int       `json:"health_check_sec"` // 0 = disabled
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	// LobbyPresetPriority is an ordered list of preset IDs. When set, Velocity/Bungee plugins
+	// with matching proxy-group-id send joining players to a running backend using the first
+	// listed preset, then the next, and so on. Empty means all backends are equal (first registered wins).
+	LobbyPresetPriority []string `json:"lobby_preset_priority,omitempty"`
+	// HandshakeJoinRoutes: optional; proxies with this proxy_group_id merge these into join-by-hostname routing.
+	// Overrides the same handshake hostname from static backend join_virtual_hosts when both exist.
+	HandshakeJoinRoutes []HandshakeJoinRoute `json:"handshake_join_routes,omitempty"`
+	CreatedAt           time.Time            `json:"created_at"`
+	UpdatedAt           time.Time            `json:"updated_at"`
 }
 
 // CloudflareSRVSettings holds dashboard-configured options for automatic
@@ -83,6 +99,15 @@ type CloudflareSRVSettings struct {
 	TargetHostname string `json:"target_hostname,omitempty"`
 }
 
+// CloudflareSRVHostnameAlias is an extra join hostname for the same proxy group SRV data.
+type CloudflareSRVHostnameAlias struct {
+	SRVHostname string `json:"srv_hostname,omitempty"`
+	// UseNetworkCredentials: use the network Cloudflare SRV API token and Zone ID (Networks).
+	UseNetworkCredentials bool `json:"use_network_credentials"`
+	APIToken string `json:"api_token,omitempty"`
+	ZoneID   string `json:"zone_id,omitempty"`
+}
+
 // Settings holds global controller settings (e.g. UPnP). Cloudflare SRV is per-network.
 type Settings struct {
 	AutoPortForwardUPnP bool `json:"auto_port_forward_upnp"`
@@ -96,6 +121,41 @@ type Settings struct {
 	NtfyToken              string `json:"ntfy_token,omitempty"`
 	NtfyUsername           string `json:"ntfy_username,omitempty"`
 	NtfyPassword           string `json:"ntfy_password,omitempty"`
+	NtfyTitlePrefix        string `json:"ntfy_title_prefix,omitempty"`
+	NtfyPriority           string `json:"ntfy_priority,omitempty"` // min, low, default, high, max
+	NtfyTags               string `json:"ntfy_tags,omitempty"`     // comma-separated tags
+	NtfyClickURL           string `json:"ntfy_click_url,omitempty"` // optional URL to open from push
+
+	// Proxy/identity plugin auto-config (bootstrap):
+	// When set, proxy plugins (Velocity/BungeeCord) and the identity plugin (Bukkit)
+	// can request controller URL + API token from the controller and write their local config.
+	//
+	// Proxies additionally need a network default:
+	// - Each network can have its own bootstrap_code
+	// - Each network can optionally have a default proxy_group_id (used for lobby join order)
+	ProxyPluginBootstrapByNetwork map[string]ProxyPluginBootstrapByNetworkEntry `json:"proxy_plugin_bootstrap_by_network,omitempty"`
+
+	// ProxyPluginBootstrapCode is a shared secret used by proxy plugins (Velocity/BungeeCord)
+	// to auto-generate their config on first run. Proxies must provide it via an out-of-band
+	// mechanism (e.g. env var).
+	ProxyPluginBootstrapCode string `json:"proxy_plugin_bootstrap_code,omitempty"`
+	// ProxyPluginDefaultNetworkID is the default network UUID used when a proxy plugin
+	// bootstraps without explicitly selecting a network.
+	ProxyPluginDefaultNetworkID string `json:"proxy_plugin_default_network_id,omitempty"`
+	// ProxyPluginDefaultProxyGroupID is the default proxy group UUID used when a proxy plugin
+	// bootstraps without explicitly selecting a proxy group.
+	ProxyPluginDefaultProxyGroupID string `json:"proxy_plugin_default_proxy_group_id,omitempty"`
+}
+
+// ProxyPluginBootstrapByNetworkEntry configures auto-config for a single network.
+// The bootstrap_code itself is stored on the controller and used only for the bootstrap exchange.
+type ProxyPluginBootstrapByNetworkEntry struct {
+	BootstrapCode       string `json:"bootstrap_code,omitempty"`
+	DefaultProxyGroupID string `json:"default_proxy_group_id,omitempty"`
+	// ControllerURL is the controller origin that proxy + identity plugins should use
+	// for this network. When empty, plugins use the controller_url provided during
+	// the bootstrap exchange (or their local defaults).
+	ControllerURL string `json:"controller_url,omitempty"`
 }
 
 // Node represents a machine running the agent.
@@ -108,8 +168,9 @@ type Node struct {
 	// PublicHostname is an optional DNS name for this node (e.g. pyzanode1.example.com).
 	// When set, Cloudflare SRV sync can use this instead of the OS hostname.
 	PublicHostname string `json:"public_hostname,omitempty"`
-	// UsePublicHostname: when true or unset, proxies use this node's PublicHostname for backends; when false, use Address or Hostname (for nodes behind NAT). Omitempty so existing nodes default to true.
-	UsePublicHostname *bool     `json:"use_public_hostname,omitempty"`
+	// UsePublicHostname: when true or unset, proxy plugins use PublicHostname for backend TCP; when false, prefer Address (LAN) for NAT/Docker. Cloudflare SRV sync ignores this and uses PublicHostname when set.
+	// Note: no omitempty on use_public_hostname: Go would omit false and nodes.json would drop LAN mode on every save, so after a controller restart it looked "public" again.
+	UsePublicHostname *bool `json:"use_public_hostname"`
 	OS                string    `json:"os"`
 	CPUUsage          float64   `json:"cpu_usage"`
 	RAMUsage          float64   `json:"ram_usage"`         // MB used
@@ -125,7 +186,7 @@ type Node struct {
 	LastHeartbeat     time.Time `json:"last_heartbeat"`
 	// Alert is set by the agent when something needs owner attention (e.g. Docker missing, start failure).
 	Alert string `json:"alert,omitempty"`
-	// AgentVersion is the embedded pyzanode-agent release string from the last heartbeat (e.g. Beta-0.2.0).
+	// AgentVersion is the embedded pyzanode-agent release string from the last heartbeat (e.g. Beta-0.3.0).
 	AgentVersion string `json:"agent_version,omitempty"`
 	// VersionAlert is set by the controller when the agent build does not match this controller (or version unknown).
 	VersionAlert string `json:"version_alert,omitempty"`
@@ -156,6 +217,43 @@ type Server struct {
 	CreatedAt     time.Time     `json:"created_at"`
 	StartedAt     *time.Time    `json:"started_at,omitempty"`
 	LastEmptyAt   time.Time     `json:"last_empty_at,omitempty"` // when we last saw PlayerCount==0; used for idle shutdown
+	// Metadata is opaque JSON for plugins (routing, map, party state, etc.). No fixed schema; networks define their own keys.
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+
+	// StaticBackend: when true, this row is a synthetic entry from StaticBackend config (not a managed agent server).
+	// Proxies resolve TCP host from LanAddress and PublicAddress using UsePublicHostname (same idea as nodes).
+	StaticBackend   bool   `json:"static_backend,omitempty"`
+	LanAddress      string `json:"lan_address,omitempty"`
+	PublicAddress   string `json:"public_address,omitempty"`
+	UsePublicHostname *bool `json:"use_public_hostname,omitempty"`
+	// JoinVirtualHosts: handshake hostnames (lowercase) that send the player to this backend first (static backend SRV aliases plus handshake_routing_hosts). Velocity/Bungee PyzaNode plugins.
+	JoinVirtualHosts []string `json:"join_virtual_hosts,omitempty"`
+}
+
+// StaticBackend is an external Minecraft backend (fixed host/port) not running on a PyzaNode agent.
+// Proxies discover these via GET /api/servers?network_id=... alongside dynamic servers.
+type StaticBackend struct {
+	ID          string `json:"id"`
+	NetworkID   string `json:"network_id"`
+	Name        string `json:"name"`
+	ShortCode   string `json:"short_code,omitempty"`
+	LanAddress  string `json:"lan_address,omitempty"`
+	PublicAddress string `json:"public_address,omitempty"`
+	Port        int    `json:"port"`
+	// PresetID optional: matches lobby_preset_priority on proxy groups.
+	PresetID string `json:"preset_id,omitempty"`
+	Group    string `json:"group,omitempty"`
+	Enabled  bool   `json:"enabled"`
+	// UsePublicHostname: when true or unset, proxy prefers PublicAddress for TCP; when false, prefers LanAddress (NAT / same DC).
+	UsePublicHostname *bool     `json:"use_public_hostname"`
+	// SRVAliases: extra _minecraft._tcp hostnames pointing at the same proxies as the network Cloudflare SRV config.
+	// Requires the network to have Cloudflare SRV enabled with a proxy group. Configure per static backend in the dashboard.
+	SRVAliases []CloudflareSRVHostnameAlias `json:"srv_aliases,omitempty"`
+	// HandshakeRoutingHosts: optional join addresses for proxy routing only (merged into join_virtual_hosts for GET /api/servers).
+	// Use when DNS is outside PyzaNode or when the hostname matches the network primary SRV name (extra SRV aliases cannot duplicate that).
+	HandshakeRoutingHosts []string `json:"handshake_routing_hosts,omitempty"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // Preset defines how a server is launched (Java process or Docker container).
